@@ -155,22 +155,41 @@ export class eHentai implements SearchResultsProviding, MangaProviding, ChapterP
         })
     }
 
-    async getMangaDetails(mangaId: string): Promise<SourceManga> {
-        const data = (await getGalleryData([mangaId], this.requestManager))[0]
-        let languageStr: string = parseLanguage(data.tags)
-        let mangaDetails: MangaInfo = App.createMangaInfo({
-            titles: [parseTitle(data.title), parseTitle(data.title_jpn)],
-            image: data.thumb,
-            rating: data.rating,
-            status: 'Completed',
-            artist: parseArtist(data.tags),
-            desc: ['Pages: ', data.filecount, ' | Language: ', languageStr,' | Rating: ', data.rating, ' | Uploader: ', data.uploader].join(''),
-            tags: parseTags([data.category, ...data.tags]),
-            hentai: !(data.category == 'Non-H' || data.tags.includes('other:non-nude'))
-        })
-
-        return App.createSourceManga({id: mangaId, mangaInfo: mangaDetails})
+    async getMangaDetails(mangaId: string): Promise<Manga> {
+    // Note: The function now returns a 'Manga' object, not a 'SourceManga'
+    
+    // Call the updated getGalleryData function. It no longer needs the requestManager.
+    const galleryDataArray = await getGalleryData([mangaId]);
+    if (!galleryDataArray || galleryDataArray.length === 0) {
+        throw new Error(`Failed to get gallery data for mangaId: ${mangaId}`);
     }
+    const data = galleryDataArray[0];
+
+    const languageStr = parseLanguage(data.tags);
+
+    // Create the mangaInfo object using the 0.9 structure and property names
+    const mangaInfo = {
+        thumbnailUrl: data.thumb,
+        synopsis: `Pages: ${data.filecount} | Language: ${languageStr} | Rating: ${data.rating} | Uploader: ${data.uploader}`,
+        primaryTitle: parseTitle(data.title),
+        secondaryTitles: [parseTitle(data.title_jpn)],
+        // Map the 'hentai' boolean to the ContentRating enum string
+        contentRating: !(data.category == 'Non-H' || data.tags.includes('other:non-nude')) ? 'ADULT' : 'EVERYONE',
+        status: 'COMPLETED',
+        artist: parseArtist(data.tags),
+        author: parseArtist(data.tags), // E-Hentai doesn't distinguish, so we use artist for both
+        rating: parseFloat(data.rating),
+        // The 'tags' property is now 'tagGroups'
+        tagGroups: parseTags([data.category, ...data.tags]),
+        shareUrl: `https://e-hentai.org/g/${mangaId}`
+    };
+
+    // Return the final object in the new 0.9 format
+    return {
+        mangaId: mangaId,
+        mangaInfo: mangaInfo
+    };
+}
 
     async getChapters(mangaId: string): Promise<Chapter[]> {
         let data = (await getGalleryData([mangaId], this.requestManager))[0]

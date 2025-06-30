@@ -14,23 +14,31 @@ import {
     getExtraArgs, getDisplayedCategories
 } from './eHentaiSettings'
 
-export async function getGalleryData(ids: string[], requestManager: RequestManager): Promise<any> {
-    const request = App.createRequest({
+export async function getGalleryData(ids: string[]): Promise<any> {
+    const request = {
         url: 'https://api.e-hentai.org/api.php',
         method: 'POST',
         headers: {
             'content-type': 'application/json'
         },
-        data: {
+        // POST data must be stringified in Paperback 0.9
+        data: JSON.stringify({
             'method': 'gdata',
             'gidlist': ids.map(id => id.split('/')),
             'namespace': 1
-        }
-    })
+        })
+    };
 
-    const data = await requestManager.schedule(request, 1)
-    const json = (typeof data.data == 'string') ? JSON.parse(data.data.replaceAll(/[\r\n]+/g, ' ')) : data.data
-    return json.gmetadata
+    // Use the new 0.9 request method which returns [response, responseBody]
+    const [response, responseBody] = await Application.scheduleRequest(request);
+    if (response.status !== 200) {
+        throw new Error(`API request failed for getGalleryData with status ${response.status}`);
+    }
+
+    // The response body is an ArrayBuffer and needs to be converted to a string
+    const responseString = Application.arrayBufferToUTF8String(responseBody);
+    const json = JSON.parse(responseString.replaceAll(/[\r\n]+/g, ' '));
+    return json.gmetadata;
 }
 
 export async function getSearchData(query: string | undefined, page: number, categories: number, requestManager: RequestManager, cheerio: CheerioAPI, nextPageId: { id: number }, sourceStateManager: SourceStateManager): Promise<PartialSourceManga[]> {
